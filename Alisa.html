@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Алиса — полный тест</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: linear-gradient(135deg, #FFD700 0%, #21A038 50%, #00BFFF 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            padding: 20px;
+        }
+        .card {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 48px;
+            padding: 30px 24px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        .alisa-btn {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #FFD700, #21A038, #00BFFF);
+            border-radius: 60px;
+            margin: 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .alisa-btn:active {
+            transform: scale(0.95);
+        }
+        .alisa-icon {
+            font-size: 64px;
+        }
+        .recording {
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .wave {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin: 20px 0;
+            height: 40px;
+        }
+        .wave span {
+            width: 6px;
+            height: 100%;
+            background: #21A038;
+            border-radius: 3px;
+            animation: waveAnim 1s infinite;
+        }
+        .wave span:nth-child(1) { animation-delay: 0s; }
+        .wave span:nth-child(2) { animation-delay: 0.1s; }
+        .wave span:nth-child(3) { animation-delay: 0.2s; }
+        .wave span:nth-child(4) { animation-delay: 0.3s; }
+        .wave span:nth-child(5) { animation-delay: 0.4s; }
+        @keyframes waveAnim {
+            0%, 100% { transform: scaleY(0.4); }
+            50% { transform: scaleY(1); }
+        }
+        .hidden { display: none; }
+        .result {
+            background: #f0f0f0;
+            border-radius: 24px;
+            padding: 16px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .question { color: #1A1A2E; font-weight: 500; margin-bottom: 8px; }
+        .answer { color: #21A038; font-weight: 500; }
+        .status {
+            font-size: 14px;
+            color: #666;
+            margin: 16px 0;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 20px;
+        }
+        button {
+            background: #1A1A2E;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 40px;
+            font-size: 16px;
+            margin: 8px;
+            cursor: pointer;
+        }
+        .perm-btn {
+            background: #21A038;
+            font-weight: bold;
+            font-size: 18px;
+            padding: 14px 28px;
+        }
+        .note {
+            font-size: 12px;
+            color: #999;
+            margin-top: 20px;
+        }
+        .microphone-status {
+            font-size: 13px;
+            margin-top: 10px;
+            color: #21A038;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="logo">🎤</div>
+        <h1>Тест Алисы</h1>
+        <div class="sub">Скажи что-нибудь в микрофон</div>
+
+        <button class="perm-btn" id="permBtn">🎙️ РАЗРЕШИТЬ МИКРОФОН</button>
+
+        <div class="alisa-btn" id="alisaBtn">
+            <div class="alisa-icon">🤖</div>
+        </div>
+
+        <div class="wave hidden" id="wave">
+            <span></span><span></span><span></span><span></span><span></span>
+        </div>
+
+        <div class="result hidden" id="result">
+            <div class="question" id="questionText"></div>
+            <div class="answer" id="answerText"></div>
+        </div>
+
+        <div class="status" id="statusText">⏺ Нажмите "РАЗРЕШИТЬ МИКРОФОН"</div>
+
+        <button id="repeatBtn" class="hidden">🔊 Повторить ответ</button>
+
+        <div class="microphone-status" id="microStatus"></div>
+
+        <div class="note">
+            💡 СНАЧАЛА нажмите зелёную кнопку → РАЗРЕШИТЕ микрофон → потом нажмите на круглую кнопку Алисы
+        </div>
+    </div>
+
+    <script>
+        const permBtn = document.getElementById('permBtn');
+        const alisaBtn = document.getElementById('alisaBtn');
+        const wave = document.getElementById('wave');
+        const resultDiv = document.getElementById('result');
+        const questionText = document.getElementById('questionText');
+        const answerText = document.getElementById('answerText');
+        const statusSpan = document.getElementById('statusText');
+        const repeatBtn = document.getElementById('repeatBtn');
+        const microStatus = document.getElementById('microStatus');
+
+        let recognition = null;
+        let lastQuestion = '';
+        let lastAnswer = '';
+        let hasPermission = false;
+
+        // Функция принудительного запроса микрофона
+        async function requestMicrophonePermission() {
+            microStatus.innerHTML = '⏳ Запрашиваем разрешение...';
+            statusSpan.innerHTML = '⏳ Запрашиваем доступ к микрофону...';
+
+            try {
+                // ЭТО ГЛАВНОЕ — принудительно запрашиваем микрофон
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Если дошли сюда — разрешение получено
+                stream.getTracks().forEach(track => track.stop());
+                
+                hasPermission = true;
+                microStatus.innerHTML = '✅ МИКРОФОН РАЗРЕШЁН! Теперь нажмите на круглую Алису';
+                statusSpan.innerHTML = '✅ Микрофон готов! Нажмите на кружок Алисы и говорите';
+                permBtn.style.display = 'none';
+                
+                // Инициализируем распознавание речи
+                initRecognition();
+                
+                return true;
+            } catch (error) {
+                console.error('Ошибка:', error);
+                
+                if (error.name === 'NotAllowedError') {
+                    microStatus.innerHTML = '❌ Вы запретили доступ к микрофону. Проверьте настройки браузера';
+                    statusSpan.innerHTML = '❌ Микрофон запрещён. Откройте настройки сайта → разрешите микрофон → обновите страницу';
+                } else if (error.name === 'NotFoundError') {
+                    microStatus.innerHTML = '❌ Микрофон не найден';
+                    statusSpan.innerHTML = '❌ На вашем устройстве нет микрофона';
+                } else {
+                    microStatus.innerHTML = '❌ Ошибка: ' + error.name;
+                    statusSpan.innerHTML = '❌ Не удалось получить доступ к микрофону';
+                }
+                
+                hasPermission = false;
+                return false;
+            }
+        }
+
+        // Инициализация распознавания речи
+        function initRecognition() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                statusSpan.innerHTML = '❌ Ваш браузер не поддерживает голосовое управление';
+                microStatus.innerHTML = '❌ Браузер не поддерживает Web Speech API';
+                return;
+            }
+
+            const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.lang = 'ru-RU';
+            recognition.interimResults = false;
+            recognition.continuous = false;
+
+            recognition.onstart = () => {
+                alisaBtn.classList.add('recording');
+                wave.classList.remove('hidden');
+                statusSpan.innerHTML = '🎙️ СЛУШАЮ... Говорите!';
+                microStatus.innerHTML = '🎙️ Скажите что-нибудь...';
+            };
+
+            recognition.onend = () => {
+                alisaBtn.classList.remove('recording');
+                wave.classList.add('hidden');
+                if (statusSpan.innerHTML !== '✅ Алиса ответила') {
+                    statusSpan.innerHTML = '🎤 Нажмите на кружок Алисы и скажите фразу';
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Ошибка распознавания:', event.error);
+                alisaBtn.classList.remove('recording');
+                wave.classList.add('hidden');
+                
+                if (event.error === 'not-allowed') {
+                    statusSpan.innerHTML = '❌ Нет доступа к микрофону. Нажмите "РАЗРЕШИТЬ МИКРОФОН"';
+                } else if (event.error === 'no-speech') {
+                    statusSpan.innerHTML = '❌ Не услышала вас. Нажмите на кружок и говорите чётко';
+                } else {
+                    statusSpan.innerHTML = '❌ Ошибка: ' + event.error;
+                }
+            };
+
+            recognition.onresult = (event) => {
+                const userText = event.results[0][0].transcript;
+                lastQuestion = userText;
+                questionText.innerHTML = '🎤 Вы сказали: "' + userText + '"';
+                statusSpan.innerHTML = '🤔 Алиса думает...';
+                microStatus.innerHTML = '🤔 Обрабатываю...';
+
+                setTimeout(() => {
+                    const answer = generateAnswer(userText);
+                    lastAnswer = answer;
+                    answerText.innerHTML = '🤖 Алиса: ' + answer;
+                    resultDiv.classList.remove('hidden');
+                    repeatBtn.classList.remove('hidden');
+                    statusSpan.innerHTML = '✅ Алиса ответила';
+                    microStatus.innerHTML = '✅ Готово!';
+                    speak(answer);
+                }, 500);
+            };
+        }
+
+        // Генерация ответов Алисы
+        function generateAnswer(question) {
+            const q = question.toLowerCase();
+            if (q.includes('привет') || q.includes('здравствуй') || q.includes('добрый день')) {
+                return 'Привет! Рада тебя слышать. Как дела? 💚';
+            }
+            if (q.includes('сколько денег') || q.includes('баланс') || q.includes('счёт')) {
+                return 'На всех счетах 135 430 АллСоф. Отличная сумма, продолжай в том же духе! 💰';
+            }
+            if (q.includes('как дела') || q.includes('как ты')) {
+                return 'У меня всё отлично! Спасибо, что спросил. А у тебя как? 😊';
+            }
+            if (q.includes('кто ты')) {
+                return 'Я Алиса — твой финансовый помощник и друг. Меня создал Марк Тойота для Т-Банка. 💚';
+            }
+            if (q.includes('марк') || q.includes('тойота')) {
+                return 'Марк Дмитриевич Тойота — основатель и глава Т-Банка, гениальный предприниматель и мой создатель. 👑';
+            }
+            if (q.includes('спасибо')) {
+                return 'Пожалуйста! Я всегда рада помочь. 😊';
+            }
+            if (q.includes('пока') || q.includes('до свидания')) {
+                return 'Пока! Заходи ещё, буду скучать. 💚';
+            }
+            return 'Я пока учусь и не всё понимаю. Но запомнила твой вопрос. Спроси что-нибудь про деньги, кредиты или просто поболтай со мной! 😊';
+        }
+
+        // Озвучивание ответа
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ru-RU';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.1;
+                
+                const voices = window.speechSynthesis.getVoices();
+                const russianVoice = voices.find(voice => voice.lang === 'ru-RU');
+                if (russianVoice) utterance.voice = russianVoice;
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // Зелёная кнопка — запрос микрофона
+        permBtn.addEventListener('click', requestMicrophonePermission);
+
+        // Круглая Алиса — запуск распознавания
+        alisaBtn.addEventListener('click', () => {
+            if (!hasPermission) {
+                statusSpan.innerHTML = '⚠️ Сначала нажмите "РАЗРЕШИТЬ МИКРОФОН" (зелёная кнопка)';
+                microStatus.innerHTML = '⚠️ Нужно разрешение на микрофон';
+                return;
+            }
+            if (recognition) {
+                try {
+                    recognition.start();
+                    microStatus.innerHTML = '🎙️ Скажите что-нибудь...';
+                } catch(e) {
+                    console.log('Уже запущено или ошибка:', e);
+                }
+            } else {
+                statusSpan.innerHTML = '❌ Распознавание не инициализировано. Нажмите "РАЗРЕШИТЬ МИКРОФОН"';
+            }
+        });
+
+        // Кнопка повтора
+        repeatBtn.addEventListener('click', () => {
+            if (lastAnswer) speak(lastAnswer);
+        });
+
+        // Предзагрузка голосов
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.getVoices();
+        }
+    </script>
+</body>
+</html>
